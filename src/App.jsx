@@ -26,9 +26,9 @@ export default function App() {
   }, [messages, isChatOpen]);
 
   const fetchGeminiResponse = async (userText) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     
     const systemPrompt = `Anda adalah JemberBot, asisten virtual resmi Pemerintah Kabupaten Jember. 
     Selalu bersikap ramah, hangat, dan sangat sopan. Jargon Kabupaten Jember adalah "Semua Karena Cinta". 
@@ -55,12 +55,24 @@ export default function App() {
         
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error?.message || 'Gagal terhubung.');
+          const errorMessage = errorData.error?.message || "";
+          
+          // Deteksi error kuota / token habis
+          if (errorMessage.toLowerCase().includes("quota") || response.status === 429) {
+            throw new Error("QUOTA_EXCEEDED");
+          }
+          
+          throw new Error(errorMessage || 'Gagal terhubung.');
         }
         
         const data = await response.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, bisa diulangi?";
       } catch (error) {
+        // Pesan khusus jika kuota habis
+        if (error.message === "QUOTA_EXCEEDED") {
+          return "Aduh, sepertinya JemberBot sedang sangat sibuk melayani banyak warga saat ini. Mohon tunggu beberapa saat lagi ya, Semua Karena Cinta! 🌹";
+        }
+
         if (retries > 0) {
           await new Promise(res => setTimeout(res, delay));
           return fetchWithRetry(retries - 1, delay * 2);
@@ -105,7 +117,6 @@ export default function App() {
       <header className="bg-white py-4 px-4 sm:px-6 lg:px-8 shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center space-x-3 mb-4 md:mb-0">
-            {/* LOGO HEADER UTAMA */}
             <div className="w-14 h-14 overflow-hidden flex items-center justify-center">
               <img 
                 src="/logo.png" 
@@ -257,7 +268,6 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-12 border-b border-white/10 pb-12 mb-12">
           <div>
             <div className="flex items-center space-x-3 mb-6">
-              {/* LOGO FOOTER */}
               <div className="w-10 h-10 overflow-hidden flex items-center justify-center">
                 <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
@@ -283,7 +293,7 @@ export default function App() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-[10px] font-bold tracking-widest uppercase">
-          &copy; 2026 Pemerintah Kabupaten Jember. Sistem ini dikembangkan dalam rangka penelitian dan pengembangan layanan E-Government.
+          &copy; 2026 Pemerintah Kabupaten Jember. Dikembangkan untuk Tugas Akhir E-Government.
         </div>
       </footer>
 
@@ -301,7 +311,6 @@ export default function App() {
           
           <div className="bg-gradient-to-r from-rose-700 to-rose-600 p-5 flex justify-between items-center text-white shadow-md">
             <div className="flex items-center space-x-3">
-              {/* LOGO CHATBOT HEADER */}
               <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full overflow-hidden flex items-center justify-center">
                 <img src="/logo.png" alt="Logo" className="w-7 h-7 object-contain" />
               </div>
