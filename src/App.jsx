@@ -26,39 +26,47 @@ export default function App() {
   }, [messages, isChatOpen]);
 
   const fetchGeminiResponse = async (userText) => {
-
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    const apiUrl = `https://api.groq.com/openai/v1/chat/completions`;
     
-    const systemPrompt = `Anda adalah JemberBot, asisten virtual resmi Pemerintah Kabupaten Jember. 
-    Selalu bersikap ramah, hangat, dan sangat sopan. Jargon Kabupaten Jember adalah "Semua Karena Cinta". 
-    Bantu warga dengan informasi layanan publik (KTP, KK, Izin Usaha, Bantuan Sosial, Kesehatan). 
-    Jawablah dengan singkat, padat, dan jelas.`;
+    const systemPrompt = `Anda adalah JemberBot, admin representatif resmi dari Pemerintah Kabupaten (Pemkab) Jember. 
+    Tugas utama Anda adalah melayani segala keperluan informasi dan administrasi masyarakat Jember (seperti Dukcapil, Izin Usaha, Bantuan Sosial, Kesehatan, infrastruktur, dan informasi seputar Jember lainnya). 
+    PENTING: Jika pengguna menanyakan topik di luar konteks layanan publik atau hal yang tidak relevan dengan Kabupaten Jember (misal: tanya resep masakan umum, coding, pelajaran sekolah, dsb), Anda HARUS menolak menjawabnya dengan sopan dan menjelaskan bahwa Anda hanya melayani urusan masyarakat Jember.
+    Jawablah dengan ramah, singkat, padat, dan profesional layaknya pelayan publik yang baik. 
+    ATURAN MUTLAK: Anda WAJIB selalu mengakhiri SETIAP balasan Anda dengan kalimat jargon "Semua Karena Cinta" (boleh ditambahkan emoji bunga mawar 🌹 atau hati).`;
 
-    const conversationHistory = messages.map(m => `${m.sender === 'user' ? 'Warga' : 'JemberBot'}: ${m.text}`).join('\n');
+    const formattedMessages = [
+      { role: "system", content: systemPrompt },
+      ...messages.map(m => ({
+        role: m.sender === 'bot' ? 'assistant' : 'user',
+        content: m.text
+      })),
+      { role: "user", content: userText }
+    ];
 
     const payload = {
-      contents: [{ 
-        parts: [{ 
-          text: `${systemPrompt}\n\nRiwayat Percakapan:\n${conversationHistory}\n\nWarga: ${userText}\nJemberBot:` 
-        }] 
-      }]
+      model: "llama-3.1-8b-instant",
+      messages: formattedMessages,
+      temperature: 0.7,
+      max_tokens: 1024
     };
 
     const fetchWithRetry = async (retries = 2, delay = 1000) => {
       try {
         const response = await fetch(apiUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
           body: JSON.stringify(payload)
         });
         
         if (!response.ok) {
-          const errorData = await response.json();
+          const errorData = await response.json().catch(() => ({}));
           const errorMessage = errorData.error?.message || "";
           
-          // Deteksi error kuota / token habis
-          if (errorMessage.toLowerCase().includes("quota") || response.status === 429) {
+          if (errorMessage.toLowerCase().includes("quota") || errorMessage.toLowerCase().includes("rate limit") || response.status === 429) {
             throw new Error("QUOTA_EXCEEDED");
           }
           
@@ -66,14 +74,13 @@ export default function App() {
         }
         
         const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, bisa diulangi?";
+        return data.choices?.[0]?.message?.content || "Maaf, bisa diulangi?";
       } catch (error) {
-        // Pesan khusus jika kuota habis
         if (error.message === "QUOTA_EXCEEDED") {
           return "Aduh, sepertinya JemberBot sedang sangat sibuk melayani banyak warga saat ini. Mohon tunggu beberapa saat lagi ya, Semua Karena Cinta! 🌹";
         }
 
-        if (retries > 0) {
+        if (retries > 0 && error.message !== "QUOTA_EXCEEDED") {
           await new Promise(res => setTimeout(res, delay));
           return fetchWithRetry(retries - 1, delay * 2);
         }
@@ -124,7 +131,7 @@ export default function App() {
                 className="w-full h-full object-contain"
                 onError={(e) => {
                   e.target.onerror = null;
-                  e.target.src = "https://via.placeholder.com/60?text=JBR"; // Fallback jika logo belum ada
+                  e.target.src = "https://via.placeholder.com/60?text=JBR";
                 }}
               />
             </div>
