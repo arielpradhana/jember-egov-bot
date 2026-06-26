@@ -42,7 +42,7 @@ Coba langsung aplikasinya tanpa perlu instalasi:
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/username-anda/jember-egov-bot.git
+git clone https://github.com/username-arielpradhana/jember-egov-bot.git
 cd jember-egov-bot
 ```
 
